@@ -1,0 +1,11 @@
+playwright>=1.40.0
+Pillow>=10.0.0
+numpy>=1.24.0,<3
+opencv-python>=4.8.0,<6
+pywinauto>=0.6.8
+flask>=3.0.0
+pymysql>=1.1.0
+requests>=2.31.0
+# 上限放宽（2026-09-03）：ddddocr 移除后无 numpy<2 硬约束；已实测通过组合——
+#   anaconda: numpy 1.26.4 + opencv 4.10.0；GeniusWork 内置运行时: numpy 2.4.3 + opencv 5.0.0.93
+#   （selftest + 6 例 NCC 回归全绿）

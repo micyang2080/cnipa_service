@@ -1,0 +1,28 @@
+﻿node_modules/
+build/
+python/__pycache__/
+python/**/__pycache__/
+python/*.log
+python/output/
+scripts/cnipa/
+*.pyc
+.env
+# 过程产物 / 日志 / 临时目录（clean_output.py 负责清理 output/）
+*.log
+output.txt*
+output/
+.cowork-temp/
+.specstory/
+.vscode/
+reexam-200410082265/
+
+# 本机服务配置（含数据库密码等）
+service/config.ini
+
+# 国知局凭证（绝不能提交）
+account.ini
+python/account.ini
+python/test_inputs/01b_login_uia.json
+
+# 服务专用 Chrome 配置（运行时占用，勿打包）
+chrome_profile/

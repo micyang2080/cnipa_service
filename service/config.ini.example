@@ -1,0 +1,45 @@
+[mysql]
+host = 127.0.0.1
+port = 3306
+user = cnipauser
+password = CHANGE_ME
+database = cnipa_db
+
+[server]
+host = 0.0.0.0
+port = 8572
+
+[file]
+root = D:\cnipa_file
+
+[worker]
+task_timeout_sec = 1800
+detail_runner_timeout_sec = 1800
+poll_interval_sec = 2
+
+[uia]
+python_root = D:\cnipa_service\python
+python_exe = python
+
+[auth]
+ipsec_base_url = https://ips.example.com/ip_sec/interface
+disabled = 0
+
+[chrome]
+exe =
+user_data_dir = D:\cnipa_service\chrome_profile
+
+[ocr]
+backend = mineru
+mineru_url = http://127.0.0.1:29000
+mineru_backend = pipeline
+mineru_server_url =
+mineru_lang = ch
+mineru_timeout_sec = 180
+mineru_parse_method = auto
+
+[dev]
+skip_stages =
+reuse_detail_cache =
+reuse_search_cache =
+only_figure = 0

@@ -1,0 +1,32 @@
+{
+  "name": "cnipa-patent-review-mcp",
+  "version": "0.1.0",
+  "description": "MCP server for 国知局 cpquery 复审/无效决定查询与 pss 摘要附图",
+  "type": "module",
+  "main": "build/index.js",
+  "bin": {
+    "cnipa-patent-review-mcp": "./build/index.js"
+  },
+  "files": [
+    "build",
+    "python",
+    "scripts"
+  ],
+  "scripts": {
+    "build": "tsc",
+    "start": "node build/index.js",
+    "test:smoke": "node scripts/mcp-smoke.mjs",
+    "prepublishOnly": "node copy-connector.js"
+  },
+  "engines": {
+    "node": ">=18"
+  },
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.27.0",
+    "zod": "^3.23.0"
+  },
+  "devDependencies": {
+    "@types/node": "^20.0.0",
+    "typescript": "^5.0.0"
+  }
+}

@@ -1,0 +1,7 @@
+{
+  "credentials_path": "C:\\git\\Skills\\patent-reexam-invalid-report\\secrets\\cnipa_credentials.json",
+  "session_dir": "C:\\git\\Mcps\\cnipa-mcp\\python\\output\\cnipa_session",
+  "force_login": false,
+  "headless": false,
+  "max_slider_attempts": 3
+}

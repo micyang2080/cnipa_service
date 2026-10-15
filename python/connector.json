@@ -1,0 +1,23 @@
+{
+  "id": "cnipa",
+  "name": "国知局复审无效",
+  "runner": "cnipa",
+  "tools": [
+    {
+      "name": "cnipa_login",
+      "description": "登录 sso.cponline.cnipa.gov.cn，处理滑块，持久化 storage_state。"
+    },
+    {
+      "name": "cnipa_search_decisions",
+      "description": "cpquery 复审/无效决定列表检索；大结果写入 cache_file。"
+    },
+    {
+      "name": "cnipa_fetch_decision_detail",
+      "description": "单条决定详情页字段提取 + detail_url。"
+    },
+    {
+      "name": "cnipa_fetch_abstract_figure",
+      "description": "pss 按 CN+申请号取摘要附图 URL/本地 PNG。"
+    }
+  ]
+}

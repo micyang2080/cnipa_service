@@ -1,0 +1,9 @@
+{
+  "credentials_path": "C:\\git\\Skills\\patent-reexam-invalid-report\\secrets\\cnipa_credentials.json",
+  "session_dir": "C:\\git\\Mcps\\cnipa-mcp\\python\\output\\cnipa_session",
+  "detail_url": "",
+  "zhuanlisqh": "200610004173",
+  "anjianbh": "4W107577",
+  "search_type": "8",
+  "headless": false
+}

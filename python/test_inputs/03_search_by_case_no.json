@@ -1,0 +1,8 @@
+{
+  "credentials_path": "C:\\git\\Skills\\patent-reexam-invalid-report\\secrets\\cnipa_credentials.json",
+  "session_dir": "C:\\git\\Mcps\\cnipa-mcp\\python\\output\\cnipa_session",
+  "library_type": "invalid",
+  "filters": { "case_no": "4W107577" },
+  "max_items": 50,
+  "headless": false
+}
