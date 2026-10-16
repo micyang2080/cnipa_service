@@ -1498,6 +1498,92 @@ def _dismiss_usage_dialog(win, step, timeout_s=12.0, absent_giveup_s=3.5):
         win, step, timeout_s=timeout_s, absent_giveup_s=absent_giveup_s)
 
 
+LOGIN_TITLE_MARKS = (
+    '统一身份', '身份认证', 'tysf.cponline', 'sso.cponline',
+)
+
+
+def login_page_visible(texts, title: str = '') -> bool:
+    """前台是否为 SSO/tysf 登录页（含查询提交后会话过期跳转）。"""
+    if sso_unsafe_visible(texts, title):
+        return True
+    tit = title or ''
+    if any(m in tit for m in LOGIN_TITLE_MARKS):
+        if CPQUERY_TITLE_MARK not in tit:
+            return True
+    joined = ' '.join(texts or [])
+    if any(m in joined for m in SLIDER_TEXT_MARKS):
+        return True
+    for m in ('统一身份认证', '自然人登录', '法人登录', '代理机构登录'):
+        if m in joined:
+            return True
+    return False
+
+
+def perform_sso_login_inplace(
+        win, out_dir, step, *, max_slider_attempts: int = 6) -> tuple[bool, str]:
+    """在当前 Chrome 窗口完成 SSO 登录（表单已在页上或打开 CAS 入口）。"""
+    try:
+        win.set_focus()
+    except Exception as e:
+        return False, f'窗口无法聚焦: {e}'
+    time.sleep(0.3)
+    texts0 = uia.all_texts(win)
+    if looks_logged_in_texts(texts0) and uia.cpquery_guest_ready(texts0):
+        step('sso_login_inplace_skip', why='session_ok')
+        return True, ''
+    if not cnipa_creds.has_creds():
+        return False, '未配置凭证：account.ini 缺少账号密码'
+    creds = cnipa_creds.load_creds()
+    if creds is None:
+        return False, '未配置凭证：account.ini 缺少账号密码'
+    step('sso_login_inplace_start', title=(win.window_text() or '')[:48])
+    fields0 = classify_login_fields(_login_edits(win))
+    if 'username' not in fields0 or 'password' not in fields0:
+        if login_page_visible(texts0, win.window_text() or ''):
+            step('login_form_wait')
+        else:
+            _open_url_tab(win, sso_login_url_for_cpquery(), step)
+    fields = {}
+    for _ in range(20):
+        time.sleep(2.0)
+        fields = classify_login_fields(_login_edits(win))
+        if 'username' in fields and 'password' in fields:
+            un = (fields['username'][0] or '')
+            pn = (fields['password'][0] or '')
+            if any(m in un for m in USERNAME_NAME_MARKS) and any(
+                    m in pn for m in PASSWORD_NAME_MARKS):
+                break
+        err = login_error_in_texts(uia.all_texts(win))
+        if err:
+            return False, f'登录页错误: {err}'
+    else:
+        return False, '登录表单未出现（40s）'
+    step('form_located', username_name=(fields['username'][0] or '')[:40])
+    readback = uia.clear_and_type(win, fields['username'][2], creds['username'])
+    if not readback or readback.strip() != creds['username'].strip():
+        return False, '用户名回读不一致'
+    step('username_typed', readback_ok=True)
+    uia.clear_and_type(win, fields['password'][2], creds['password'])
+    step('password_typed')
+    time.sleep(0.5)
+    if not _click_login_button(win, step):
+        return False, '未找到登录按钮'
+    if not _handle_captcha(win, out_dir, step, max_attempts=max_slider_attempts):
+        return False, f'滑块验证未通过（尝试 {max_slider_attempts} 次）'
+    state = _wait_post_login(win, step, timeout_s=45.0)
+    step('post_login_state', state=state)
+    if state.startswith('auth_error'):
+        return False, f'登录被拒: {state.split(":", 1)[-1]}'
+    if state == 'timeout':
+        return False, '登录后 45s 未检测到 cpquery 登录态'
+    uia.dismiss_usage_dialog(win, step, timeout_s=10.0, absent_giveup_s=3.5)
+    uia.ensure_cpquery_front_tab(win, step=step)
+    time.sleep(0.8)
+    step('sso_login_inplace_ok')
+    return True, ''
+
+
 def selftest() -> int:
     failures = []
 

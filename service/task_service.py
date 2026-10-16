@@ -1,6 +1,7 @@
 # -*- coding: utf-8 -*-
 from __future__ import annotations
 
+from datetime import datetime
 from typing import Any, Optional
 
 from service import db
@@ -93,16 +94,33 @@ def _case_keys_from_result(raw: Any) -> list:
 
 
 def _task1_reuse_ok(task: dict) -> bool:
-    """task_type=1 可复用：无命中(4)；或有结果且每条决定 PDF 已在盘上。"""
+    """task_type=1 可复用：status=3 且每条决定 PDF 已在交付盘；其它状态不复用。"""
     st = int(task.get("status") or 0)
-    if st == 4:
-        return True
     if st != 3:
         return False
     keys = _case_keys_from_result(task.get("result_json"))
     if not keys:
         return False
     return all(_pdf_on_disk(app, case) for app, case in keys)
+
+
+def _running_task_alive(task: dict, max_sec: int = 120) -> bool:
+    """status=2 且仍在合理执行窗口内 → 视为同一次运行可去重。"""
+    if int(task.get("status") or 0) != 2:
+        return False
+    started = task.get("started_at")
+    if started is None:
+        return False
+    if isinstance(started, str):
+        try:
+            started = datetime.fromisoformat(started.replace("Z", "+00:00"))
+        except ValueError:
+            return False
+    try:
+        age = (datetime.now() - started.replace(tzinfo=None)).total_seconds()
+    except Exception:
+        return False
+    return age < max_sec
 
 
 def _merge_case(item: Optional[dict], detail: Optional[dict], fig_path: str) -> dict:
@@ -295,13 +313,31 @@ def create_task(body: dict) -> tuple[dict, int]:
             existing = db.find_active_by_query_key(cur, key)
             if existing:
                 st = int(existing.get("status") or 0)
-                # 排队/执行中：仍复用；成功但缺 PDF：跳过复用，新建任务重跑
-                reuse = st in (1, 2) or (
-                    st in (3, 4)
-                    and (task_type != 1 or _task1_reuse_ok(existing))
-                )
-                if reuse:
+                tid_ex = int(existing["task_id"])
+                # 僵尸 status=2（进程已死、浏览器空转）：作废以便新建任务
+                if st == 2 and not _running_task_alive(existing):
+                    db.finish_fail(
+                        cur, tid_ex, "STALE_RUN",
+                        "上次任务长时间无进展，已作废；请重新提交",
+                    )
+                    existing = None
+                if existing:
+                    st = int(existing.get("status") or 0)
                     tid_ex = int(existing["task_id"])
+                # 排队可复用；执行中仅短窗口内复用；成功仅 type1 且 PDF 齐
+                reuse = existing is not None and (
+                    st == 1
+                    or (st == 2 and _running_task_alive(existing))
+                    or (
+                        st == 3
+                        and (task_type != 1 or _task1_reuse_ok(existing))
+                    )
+                    or (
+                        st == 4
+                        and task_type != 1
+                    )
+                )
+                if reuse and existing:
                     figs = db.get_figures(cur, tid_ex)
                     if st in (3, 4):
                         apps = _apps_from_task(existing)

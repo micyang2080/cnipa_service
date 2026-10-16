@@ -1,5 +1,6 @@
 playwright>=1.40.0
 Pillow>=10.0.0
+pymupdf>=1.24.0
 numpy>=1.24.0,<3
 opencv-python>=4.8.0,<6
 pywinauto>=0.6.8

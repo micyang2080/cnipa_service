@@ -1121,6 +1121,10 @@ def edit_value(elem) -> str:
 # 结果读取
 # ---------------------------------------------------------------------------
 
+class UiaPollAbort(Exception):
+    """wait_total_change 的 on_poll 回调请求中断轮询（如查询中跳登录页）。"""
+
+
 TOTAL_PATTERNS = (
     re.compile(r'共查询到\s*([0-9,，]+)\s*条'),
     re.compile(r'共检索到\s*([0-9,，]+)\s*条'),
@@ -1152,6 +1156,8 @@ def wait_total_change(win, was: Optional[int], timeout_s: float = 20.0,
         if callable(on_poll):
             try:
                 on_poll()
+            except UiaPollAbort:
+                raise
             except Exception:
                 pass
         cur = read_total(win)

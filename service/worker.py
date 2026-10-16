@@ -83,6 +83,22 @@ def _abs_for_app(application_no: str) -> str:
     return str(Path(config.file_root()) / application_no / _figure_write_name(application_no))
 
 
+def _any_detail_needs_uia(library_type: str, items: list) -> bool:
+    """任一条缺详情 JSON 或交付盘 PDF → 必须进页点卡片（不能仅靠检索文件缓存）。"""
+    cache_mod = _py_import("cnipa_cache")
+    for item in items:
+        if not isinstance(item, dict):
+            continue
+        app_d = qk.dotted_appno(item.get("application_no"))
+        case_d = str(item.get("case_no") or "").strip()
+        if not app_d or not case_d:
+            continue
+        cache_mod.ensure_decision_pdf_on_file_root(app_d, case_d)
+        if not cache_mod.detail_bundle_ready(library_type, app_d, case_d):
+            return True
+    return False
+
+
 def _disk_pdf(application_no: str, case_no: str) -> Optional[Path]:
     app = qk.dotted_appno(application_no) or ""
     case = str(case_no or "").strip()
@@ -399,6 +415,29 @@ def _execute_type1(cur, task: dict):
         }
         db.finish_ok(cur, tid, 4, result)
         return
+
+    # 检索 JSON 缓存命中不会动浏览器；若仍缺 PDF/详情，必须重跑检索 UIA 以切库+出结果页
+    if data.get("from_cache") and not force and _any_detail_needs_uia(library_type, items):
+        log.info(
+            "search file cache hit but detail/pdf incomplete; re-run search UIA "
+            "task_id=%s items=%s", tid, len(items))
+        db.set_progress(cur, tid, "search:uia_for_detail")
+        uia_payload = dict(search_payload)
+        uia_payload["force_refresh"] = True
+        ok, data2, err = runner_invoke.search_decisions(uia_payload, timeout_sec=900)
+        if ok and data2.get("success"):
+            data = data2
+            items = list(data.get("items") or [])
+            library_type = data.get("library_type") or library_type
+            total = data.get("total")
+            truncated = bool(data.get("truncated"))
+            if len(items) > RESULT_CAP:
+                items = items[:RESULT_CAP]
+                truncated = True
+        else:
+            log.warning(
+                "search UIA retry after cache failed task_id=%s err=%s",
+                tid, err or data2.get("error"))
 
     details = []
     for i, item in enumerate(items):

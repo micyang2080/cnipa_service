@@ -40,6 +40,11 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import cnipa_contract
 import cnipa_cache
 import cnipa_uia as uia
+from run_cnipa_login_uia import (  # noqa: E402
+    login_page_visible,
+    perform_sso_login_inplace,
+    sso_unsafe_visible,
+)
 
 REPO = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 
@@ -786,6 +791,25 @@ def main() -> int:
             return False, None, err_f
         return _submit_query(total_before)
 
+    def _try_sso_relogin(side: dict) -> None:
+        """查询后会话过期跳 tysf/SSO：当场登录，勿等任务失败再由调用方重试。"""
+        if side.get('login_tried'):
+            return
+        texts = uia.all_texts(win)
+        tit = win.window_text() or ''
+        if uia.looks_logged_in(win) and uia.cpquery_guest_ready(texts):
+            return
+        if not login_page_visible(texts, tit) and not sso_unsafe_visible(texts, tit):
+            return
+        side['login_tried'] = True
+        step('mid_query_session_expired', title=tit[:48])
+        ok, err = perform_sso_login_inplace(win, out_dir, step)
+        if not ok:
+            side['login_fail'] = err or '登录失败'
+            raise uia.UiaPollAbort()
+        side['relogin'] = True
+        raise uia.UiaPollAbort()
+
     def _wait_query_result(total_before, allow_retry=True,
                            allow_empty_requery=True) -> tuple:
         """等总数变化；查询后「使用说明」常晚出，轮询中随时关。关后若掉回首页则重进重查。
@@ -793,8 +817,10 @@ def main() -> int:
         站点偶发：转圈后假 0 条，条件不变再点一次「查询」即有结果。
         """
         reset = {'hit': False}
+        login_side = {'login_tried': False}
 
         def _poll_dismiss():
+            _try_sso_relogin(login_side)
             if not uia.usage_dialog_present(win):
                 return
             if not uia.dismiss_usage_dialog(
@@ -803,8 +829,17 @@ def main() -> int:
             if not _still_on_decision_form():
                 reset['hit'] = True
 
-        total_after = uia.wait_total_change(
-            win, total_before, timeout_s=28.0, poll_s=0.7, on_poll=_poll_dismiss)
+        try:
+            total_after = uia.wait_total_change(
+                win, total_before, timeout_s=28.0, poll_s=0.7,
+                on_poll=_poll_dismiss)
+        except uia.UiaPollAbort:
+            if login_side.get('login_fail'):
+                return False, None, login_side['login_fail']
+            if login_side.get('relogin'):
+                step('mid_query_relogin_ok')
+                return _fill_and_query_once()
+            total_after = uia.read_total(win)
         if reset['hit']:
             step('usage_reset_page', note='关使用说明后掉回案件查询，重进模块重查')
             if not allow_retry:
@@ -835,8 +870,16 @@ def main() -> int:
                 return True, total_after, None
             uia.click(win, qbtn)
             step('click_query', ok=True, empty_requery=True)
-            total_after = uia.wait_total_change(
-                win, 0, timeout_s=22.0, poll_s=0.7, on_poll=_poll_dismiss)
+            try:
+                total_after = uia.wait_total_change(
+                    win, 0, timeout_s=22.0, poll_s=0.7, on_poll=_poll_dismiss)
+            except uia.UiaPollAbort:
+                if login_side.get('login_fail'):
+                    return False, None, login_side['login_fail']
+                if login_side.get('relogin'):
+                    step('mid_query_relogin_ok', phase='empty_requery')
+                    return _fill_and_query_once()
+                total_after = uia.read_total(win)
             if reset['hit']:
                 step('usage_reset_page', note='空结果重查时掉回首页')
                 if allow_retry and _prepare_decision_form():
@@ -860,6 +903,14 @@ def main() -> int:
         if not ok_f:
             return False, None, err_f
         return _submit_query(total_before, retry=True)
+
+    texts_pre = uia.all_texts(win)
+    tit_pre = win.window_text() or ''
+    if login_page_visible(texts_pre, tit_pre) or sso_unsafe_visible(texts_pre, tit_pre):
+        step('pre_search_login_wall')
+        ok_l, err_l = perform_sso_login_inplace(win, out_dir, step)
+        if not ok_l:
+            return fail(2, err_l or '检索前登录失败')
 
     if not _prepare_decision_form():
         uia.screenshot_window(win, os.path.join(out_dir, 'fail_module.png'))
